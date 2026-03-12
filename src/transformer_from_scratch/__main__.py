@@ -1,11 +1,6 @@
-import numpy as np
-import torch
+"""CLI entrypoint."""
 
-
-def main() -> None:
-    print(np.__version__)
-    print(torch.__version__)
-
+from .translation import main
 
 if __name__ == "__main__":
     main()
