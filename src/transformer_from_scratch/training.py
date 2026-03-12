@@ -17,8 +17,7 @@ from transformer_from_scratch.model import EncoderDecoder
 class LossCompute(Protocol):
     """run_epoch から呼ばれる loss 計算インターフェース。"""
 
-    def __call__(self, x: Tensor, y: Tensor, norm: int) -> tuple[float, Tensor]:
-        ...
+    def __call__(self, x: Tensor, y: Tensor, norm: int) -> tuple[float, Tensor]: ...
 
 
 class Batch:
@@ -124,11 +123,7 @@ def run_epoch(
             start = time.time()
             tokens = 0
 
-    if (
-        is_training
-        and optimizer is not None
-        and train_state.step % accum_iter != 0
-    ):
+    if is_training and optimizer is not None and train_state.step % accum_iter != 0:
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         train_state.accum_step += 1
@@ -144,9 +139,7 @@ def rate(step: int, model_size: int, factor: float, warmup: int) -> float:
     """Transformer 論文の learning rate schedule。"""
     if step == 0:
         step = 1
-    return factor * (
-        model_size ** (-0.5) * min(step ** (-0.5), step * warmup ** (-1.5))
-    )
+    return factor * (model_size ** (-0.5) * min(step ** (-0.5), step * warmup ** (-1.5)))
 
 
 def make_scheduler(

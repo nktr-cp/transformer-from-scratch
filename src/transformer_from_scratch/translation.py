@@ -186,9 +186,7 @@ def translate_text(
         end_symbol=vocab_tgt["</s>"],
     )
     tokens = decode_tokens(output[0], vocab_tgt)
-    filtered_tokens = [
-        token for token in tokens if token not in {"<s>", "</s>", "<blank>"}
-    ]
+    filtered_tokens = [token for token in tokens if token not in {"<s>", "</s>", "<blank>"}]
     return " ".join(filtered_tokens)
 
 

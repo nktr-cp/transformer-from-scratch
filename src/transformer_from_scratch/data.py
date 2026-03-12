@@ -173,12 +173,8 @@ def collate_batch(
             dim=0,
         )
 
-        src_list.append(
-            pad(processed_src, (0, max_padding - len(processed_src)), value=pad_id)
-        )
-        tgt_list.append(
-            pad(processed_tgt, (0, max_padding - len(processed_tgt)), value=pad_id)
-        )
+        src_list.append(pad(processed_src, (0, max_padding - len(processed_src)), value=pad_id))
+        tgt_list.append(pad(processed_tgt, (0, max_padding - len(processed_tgt)), value=pad_id))
 
     return torch.stack(src_list), torch.stack(tgt_list)
 
