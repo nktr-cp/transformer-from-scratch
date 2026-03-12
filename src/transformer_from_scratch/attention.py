@@ -5,6 +5,8 @@ import math
 import torch
 from torch import Tensor, nn
 
+from transformer_from_scratch.layers import clones
+
 
 def attention(
     query: Tensor,
@@ -42,3 +44,78 @@ def attention(
     # softmax(Q K^T / sqrt(d_k)) V
     # attention の重みで value を重み付き和し、出力ベクトルを得る。
     return torch.matmul(attention_weights, value), attention_weights
+
+
+class MultiHeadedAttention(nn.Module):
+    """複数の attention head を並列に計算する。"""
+
+    def __init__(self, h: int, d_model: int, dropout: float = 0.1) -> None:
+        super().__init__()
+        if d_model % h != 0:
+            msg = "d_model must be divisible by h"
+            raise ValueError(msg)
+
+        self.d_k = d_model // h
+        self.h = h
+        self.linears = clones(nn.Linear(d_model, d_model), 4)
+        self.attention_weights: Tensor | None = None
+        self.dropout = nn.Dropout(p=dropout)
+
+    def _project(
+        self,
+        x: Tensor,
+        linear: nn.Linear,
+        batch_size: int,
+    ) -> Tensor:
+        # (batch, seq_len, d_model) -> (batch, seq_len, d_model)
+        projected = linear(x)
+        # (batch, seq_len, d_model) -> (batch, seq_len, h, d_k)
+        projected = projected.view(batch_size, -1, self.h, self.d_k)
+        # (batch, seq_len, h, d_k) -> (batch, h, seq_len, d_k)
+        return projected.transpose(1, 2)
+
+    def _concat_heads(self, x: Tensor, batch_size: int) -> Tensor:
+        # (batch, h, seq_len, d_k) -> (batch, seq_len, h, d_k)
+        x = x.transpose(1, 2).contiguous()
+        # (batch, seq_len, h, d_k) -> (batch, seq_len, h * d_k)
+        return x.view(batch_size, -1, self.h * self.d_k)
+
+    def forward(
+        self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        mask: Tensor | None = None,
+    ) -> Tensor:
+        if mask is not None:
+            # mask に head 軸を 1 つ足し、
+            # 同じ mask を全 head に適用できるようにする。
+            # (batch, seq_len, seq_len) -> (batch, 1, seq_len, seq_len)
+            mask = mask.unsqueeze(1)
+
+        batch_size = query.size(0)
+
+        # Q = query W_Q
+        # (batch, seq_len, d_model) -> (batch, h, seq_len, d_k)
+        projected_query = self._project(query, self.linears[0], batch_size)
+        # K = key W_K
+        # (batch, seq_len, d_model) -> (batch, h, seq_len, d_k)
+        projected_key = self._project(key, self.linears[1], batch_size)
+        # V = value W_V
+        # (batch, seq_len, d_model) -> (batch, h, seq_len, d_k)
+        projected_value = self._project(value, self.linears[2], batch_size)
+
+        x, self.attention_weights = attention(
+            projected_query,
+            projected_key,
+            projected_value,
+            mask=mask,
+            dropout=self.dropout,
+        )
+
+        # Concat(head_1, ..., head_h)
+        # (batch, h, seq_len, d_k) -> (batch, seq_len, h * d_k)
+        x = self._concat_heads(x, batch_size)
+
+        # Concat した結果に最終線形変換 W_O をかける。
+        return self.linears[-1](x)

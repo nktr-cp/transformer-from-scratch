@@ -171,6 +171,27 @@ class DecoderLayer(nn.Module):
         return self.sublayers[2](x, self.feed_forward)
 
 
+class PositionwiseFeedForward(nn.Module):
+    """各位置に独立に適用する 2 層の feed-forward network。"""
+
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1) -> None:
+        super().__init__()
+        # 第1線形層: xW1 + b1
+        self.input_projection = nn.Linear(d_model, d_ff)
+        # 第2線形層: hiddenW2 + b2
+        self.output_projection = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # xW1 + b1
+        hidden = self.input_projection(x)
+        # max(0, xW1 + b1)
+        hidden = hidden.relu()
+        hidden = self.dropout(hidden)
+        # max(0, xW1 + b1)W2 + b2
+        return self.output_projection(hidden)
+
+
 def subsequent_mask(size: int) -> Tensor:
     """未来の位置を見ないための causal mask を作る。"""
     attention_shape = (1, size, size)
