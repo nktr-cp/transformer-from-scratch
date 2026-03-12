@@ -3,6 +3,16 @@
 import torch
 from torch import Tensor, nn
 
+from transformer_from_scratch.attention import MultiHeadedAttention
+from transformer_from_scratch.embeddings import Embeddings, PositionalEncoding
+from transformer_from_scratch.layers import (
+    Decoder,
+    DecoderLayer,
+    Encoder,
+    EncoderLayer,
+    PositionwiseFeedForward,
+)
+
 
 class EncoderDecoder(nn.Module):
     """標準的な Encoder-Decoder アーキテクチャ全体を束ねる。"""
@@ -60,3 +70,51 @@ class Generator(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return torch.log_softmax(self.proj(x), dim=-1)
+
+
+def make_model(
+    src_vocab: int,
+    tgt_vocab: int,
+    n: int = 6,
+    d_model: int = 512,
+    d_ff: int = 2048,
+    h: int = 8,
+    dropout: float = 0.1,
+) -> EncoderDecoder:
+    """ハイパーパラメータから Transformer を組み立てる。"""
+    encoder_layer = EncoderLayer(
+        d_model,
+        MultiHeadedAttention(h, d_model, dropout),
+        PositionwiseFeedForward(d_model, d_ff, dropout),
+        dropout,
+    )
+    decoder_layer = DecoderLayer(
+        d_model,
+        MultiHeadedAttention(h, d_model, dropout),
+        MultiHeadedAttention(h, d_model, dropout),
+        PositionwiseFeedForward(d_model, d_ff, dropout),
+        dropout,
+    )
+    src_embedding = nn.Sequential(
+        Embeddings(d_model, src_vocab),
+        PositionalEncoding(d_model, dropout),
+    )
+    tgt_embedding = nn.Sequential(
+        Embeddings(d_model, tgt_vocab),
+        PositionalEncoding(d_model, dropout),
+    )
+
+    model = EncoderDecoder(
+        Encoder(encoder_layer, n),
+        Decoder(decoder_layer, n),
+        src_embedding,
+        tgt_embedding,
+        Generator(d_model, tgt_vocab),
+    )
+
+    # 重み行列は論文実装に合わせて Xavier で初期化する。
+    for parameter in model.parameters():
+        if parameter.dim() > 1:
+            nn.init.xavier_uniform_(parameter)
+
+    return model
